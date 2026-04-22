@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pika
+python-dotenv
+certifi
+python-multipart
+pydantic

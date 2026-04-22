@@ -1,0 +1,45 @@
+services:
+  film_upload_service:
+    build:
+      context: .
+      dockerfile: film_upload_service/Dockerfile
+    ports:
+      - "8001:8001"
+    env_file: .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+
+  metadata_service:
+    build:
+      context: .
+      dockerfile: metadata_service/Dockerfile
+    ports:
+      - "8002:8002"
+    env_file: .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+
+  transcoding_service:
+    build:
+      context: .
+      dockerfile: transcoding_service/Dockerfile
+    ports:
+      - "8003:8003"
+    env_file: .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+
+  review_service:
+    build:
+      context: .
+      dockerfile: review_service/Dockerfile
+    ports:
+      - "8004:8004"
+    env_file: .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8004 --reload
+
+  rating_service:
+    build:
+      context: .
+      dockerfile: rating_service/Dockerfile
+    ports:
+      - "8005:8005"
+    env_file: .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8005 --reload

@@ -1,0 +1,226 @@
+{
+  "info": {
+    "name": "Cinema Microservices API",
+    "_postman_id": "cinema-ms-001",
+    "description": "REST API tests for Cinema Microservices",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "film_upload_url",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "metadata_url",
+      "value": "http://localhost:8002"
+    },
+    {
+      "key": "transcoding_url",
+      "value": "http://localhost:8003"
+    },
+    {
+      "key": "review_url",
+      "value": "http://localhost:8004"
+    },
+    {
+      "key": "rating_url",
+      "value": "http://localhost:8005"
+    }
+  ],
+  "item": [
+    {
+      "name": "Film Upload Service",
+      "item": [
+        {
+          "name": "TEST 1 - Upload Film File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Response has id', () => pm.expect(pm.response.json()).to.have.property('id'));",
+                  "pm.test('Extension extracted correctly', () => pm.expect(pm.response.json().extension).to.eql('mp4'));",
+                  "pm.collectionVariables.set('film_title', pm.response.json().title);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{film_upload_url}}/films/upload",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Select any .mp4 file"
+                },
+                {
+                  "key": "title",
+                  "type": "text",
+                  "value": "Inception"
+                },
+                {
+                  "key": "studio",
+                  "type": "text",
+                  "value": "Warner Bros"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "TEST 2 - List All Films",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('Array not empty', () => pm.expect(pm.response.json().length).to.be.greaterThan(0));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{film_upload_url}}/films/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Review Service",
+      "item": [
+        {
+          "name": "TEST 3 - Submit Review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Response has id', () => pm.expect(pm.response.json()).to.have.property('id'));",
+                  "pm.test('Film title matches', () => pm.expect(pm.response.json().film_title).to.eql('Inception'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{review_url}}/reviews/",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"film_title\": \"Inception\", \"reviewer\": \"Jan Kowalski\", \"review_text\": \"Absolutnie niesamowity film. Prawdziwe arcydzie\\u0142o kina.\"}"
+            }
+          }
+        },
+        {
+          "name": "TEST 4 - List Reviews for Film",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{review_url}}/reviews/Inception"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rating Service",
+      "item": [
+        {
+          "name": "TEST 5 - Submit Rating",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Score matches', () => pm.expect(pm.response.json().score).to.eql(9.2));",
+                  "pm.test('Has id', () => pm.expect(pm.response.json()).to.have.property('id'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{rating_url}}/ratings",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"film_title\": \"Inception\", \"user\": \"Anna Nowak\", \"score\": 9.2}"
+            }
+          }
+        },
+        {
+          "name": "TEST 6 - List All Ratings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Array not empty', () => pm.expect(pm.response.json().length).to.be.greaterThan(0));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{rating_url}}/ratings"
+          }
+        },
+        {
+          "name": "TEST 7 - List Recommendations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{rating_url}}/recommendations"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+from typing import Protocol
+from domain.entities.recommendation import Recommendation
+
+class RecommendationRepositoryProtocol(Protocol):
+    def save(self, recommendation: Recommendation) -> Recommendation: ...
+    def find_all(self) -> list[Recommendation]: ...

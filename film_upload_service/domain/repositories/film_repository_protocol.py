@@ -1,0 +1,6 @@
+from typing import Protocol
+from domain.entities.film import Film
+
+class FilmRepositoryProtocol(Protocol):
+    def save(self, film: Film) -> Film: ...
+    def find_all(self) -> list[Film]: ...
