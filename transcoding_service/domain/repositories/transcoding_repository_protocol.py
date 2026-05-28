@@ -1,0 +1,6 @@
+from typing import Protocol
+from domain.entities.transcoding_job import TranscodingJob
+
+class TranscodingRepositoryProtocol(Protocol):
+    def save(self, job: TranscodingJob) -> TranscodingJob: ...
+    def find_all(self) -> list[TranscodingJob]: ...

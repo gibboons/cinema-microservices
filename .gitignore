@@ -1,0 +1,39 @@
+# Environment variables — contain credentials, never commit
+.env
+.env.*
+!.env.example
+
+# SQLite databases
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Uploaded files (local dev)
+uploads/

@@ -1,0 +1,6 @@
+from typing import Protocol
+from domain.entities.rating import Rating
+
+class RatingRepositoryProtocol(Protocol):
+    def save(self, rating: Rating) -> Rating: ...
+    def find_all(self) -> list[Rating]: ...
