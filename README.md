@@ -194,28 +194,6 @@ Po uruchomieniu dostępne pod adresami:
 
 ---
 
-## Testy REST API w Postmanie
-
-Zaimportuj plik `Cinema_Microservices_Postman.json` do Postmana.
-
-| # | Test | Metoda | Endpoint | Asercje |
-|---|---|---|---|---|
-| 1 | Upload Film File | POST | `/films/upload` | status 201, pole `id`, `s3_key`, poprawne `extension` |
-| 2 | List All Films | GET | `/films/` | status 200, tablica niepusta |
-| 3 | Download Film | GET | `/films/1/download` | status 200, pole `presigned_url` |
-| 4 | Submit Review | POST | `/reviews/` | status 201, pole `id` |
-| 5 | List Reviews for Film | GET | `/reviews/Inception` | status 200, tablica |
-| 6 | Submit Rating | POST | `/ratings` | status 201, `score == 9.2` |
-| 7 | List All Ratings | GET | `/ratings` | status 200, tablica niepusta |
-| 8 | List Recommendations | GET | `/recommendations` | status 200, tablica niepusta |
-
-### Kolejność testowania
-1. Uruchom **TEST 1** ręcznie — wymaga wskazania pliku w polu `file` oraz wypełnienia pól `title` i `studio`
-2. Odczekaj 2-3 sekundy na propagację eventów przez RabbitMQ
-3. Uruchom pozostałe testy — w Postmanie: **Run Collection**
-
----
-
 ## Logger
 
 Każdy mikroserwis korzysta ze wspólnego loggera (`shared/logger.py`). Każda metoda loguje swoje wywołanie:
