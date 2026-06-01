@@ -7,7 +7,7 @@ class SubmitReviewRequest(BaseModel):
     review_text: str
 
 class ReviewResponse(BaseModel):
-    id: int
+    id: str
     film_title: str
     reviewer: str
     review_text: str

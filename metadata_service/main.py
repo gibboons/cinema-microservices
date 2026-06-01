@@ -22,5 +22,5 @@ async def lifespan(app: FastAPI):
     yield
 
 Base.metadata.create_all(bind=engine)
-app = FastAPI(title="Metadata Service", version="2.0", lifespan=lifespan)
+app = FastAPI(title="Metadata Service", version="3.0", lifespan=lifespan)
 logger.info("MetadataService initialized on port 8002")

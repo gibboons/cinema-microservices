@@ -1,28 +1,42 @@
+import uuid
+from datetime import datetime
 from domain.entities.transcoding_job import TranscodingJob
-from infrastructure.persistence.models import TranscodingJobModel
+from domain.repositories.transcoding_repository_protocol import TranscodingRepositoryProtocol
 from shared.logger import get_logger
 
 logger = get_logger(__name__)
 
 class TranscodingRepository:
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, table):
+        self.table = table
         logger.info("TranscodingRepository.__init__()")
 
     def save(self, job: TranscodingJob) -> TranscodingJob:
         logger.info(f"TranscodingRepository.save() - {job.film_title}")
-        m = TranscodingJobModel(film_title=job.film_title, studio=job.studio,
-                                status=job.status, created_at=job.created_at,
-                                updated_at=job.updated_at)
-        self.db.add(m)
-        self.db.commit()
-        self.db.refresh(m)
-        job.id = m.id
+        job_id = str(uuid.uuid4())
+        item = {
+            "id":         job_id,
+            "film_title": job.film_title,
+            "studio":     job.studio,
+            "status":     job.status,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat(),
+        }
+        self.table.put_item(Item=item)
+        job.id = job_id
         return job
 
     def find_all(self) -> list[TranscodingJob]:
         logger.info("TranscodingRepository.find_all()")
-        return [TranscodingJob(id=m.id, film_title=m.film_title, studio=m.studio,
-                               status=m.status, created_at=m.created_at,
-                               updated_at=m.updated_at)
-                for m in self.db.query(TranscodingJobModel).all()]
+        response = self.table.scan()
+        return [
+            TranscodingJob(
+                id=i["id"],
+                film_title=i["film_title"],
+                studio=i["studio"],
+                status=i["status"],
+                created_at=datetime.fromisoformat(i["created_at"]),
+                updated_at=datetime.fromisoformat(i["updated_at"]),
+            )
+            for i in response.get("Items", [])
+        ]

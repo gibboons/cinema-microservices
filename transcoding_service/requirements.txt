@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
+boto3
 pika
 python-dotenv
 certifi

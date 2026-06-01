@@ -1,37 +1,37 @@
 # Cinema Microservices
 
-## Opis procesu
+## Overview
 
-System obsługi platformy kinowej oparty na architekturze mikroserwisów. Proces obejmuje przesyłanie filmów przez studio (z zapisem pliku na AWS S3), automatyczne przetwarzanie metadanych i transcodingu, oraz zbieranie recenzji i ocen od użytkowników z automatycznym generowaniem rekomendacji.
+A cinema platform system built on microservices architecture. The process covers film uploads by studios (with file storage on AWS S3), automatic metadata and transcoding processing, and collecting reviews and ratings from users with automatic recommendation generation.
 
 ---
 
-## Architektura
+## Architecture
 
-System składa się z **5 niezależnych mikroserwisów** komunikujących się przez brokera wiadomości RabbitMQ działającego w środowisku chmurowym (CloudAMQP).
+The system consists of **5 independent microservices** communicating through a RabbitMQ message broker running in the cloud (CloudAMQP).
 
-### Mikroserwisy
+### Microservices
 
-| Serwis | Port | Odpowiedzialność |
+| Service | Port | Responsibility |
 |---|---|---|
-| `film_upload_service` | 8001 | Odbiera plik od użytkownika, zapisuje go na AWS S3, publikuje `FilmUploadedEvent` |
-| `metadata_service` | 8002 | Konsumuje `FilmUploadedEvent`, zapisuje metadane filmu |
-| `transcoding_service` | 8003 | Konsumuje `FilmUploadedEvent`, tworzy job transcodingu |
-| `review_service` | 8004 | Odbiera recenzje od użytkownika, zapisuje do bazy |
-| `rating_service` | 8005 | Odbiera oceny, zapisuje do bazy, generuje rekomendację i publikuje eventy |
+| `film_upload_service` | 8001 | Receives file from user, saves it to AWS S3, publishes `FilmUploadedEvent` |
+| `metadata_service` | 8002 | Consumes `FilmUploadedEvent`, saves film metadata |
+| `transcoding_service` | 8003 | Consumes `FilmUploadedEvent`, creates transcoding job |
+| `review_service` | 8004 | Receives reviews from user, saves to database |
+| `rating_service` | 8005 | Receives ratings, saves to database, generates recommendation and publishes events |
 
-### Przepływ zdarzeń
+### Event Flow
 
 ```
 [POST /films/upload]  (title, studio, file)
         │
-        ├── upload pliku → AWS S3
+        ├── upload file → AWS S3
         │
         ▼ FilmUploadedEvent (RabbitMQ fanout)
    ┌────┴──────────────────────────┐
    ▼                               ▼
 metadata_service            transcoding_service
-(zapisuje metadane)         (tworzy job transcodingu)
+(saves metadata)            (creates transcoding job)
 
 
 [POST /reviews/]  (film_title, reviewer, review_text)
@@ -41,9 +41,9 @@ metadata_service            transcoding_service
 
 [POST /ratings]  (film_title, user, score)
         │
-        ├── zapisuje ocenę do bazy
+        ├── saves rating to database
         ├── ▼ RatingSubmittedEvent (RabbitMQ fanout)
-        ├── generuje rekomendację (score ≥ 7.0 → "wysoko oceniony", inaczej "umiarkowanie")
+        ├── generates recommendation (score ≥ 7.0 → "highly rated", otherwise "moderate")
         └── ▼ RecommendationGeneratedEvent (RabbitMQ fanout)
 ```
 
@@ -51,92 +51,132 @@ metadata_service            transcoding_service
 
 ## Clean Architecture + CQRS (Onion Architecture)
 
-Każdy mikroserwis jest zbudowany zgodnie z Clean Architecture i wzorcem CQRS (biblioteka `diator`). Warstwy zależą tylko od warstw wewnętrznych:
+Each microservice is built according to Clean Architecture and CQRS pattern (using the `diator` library). Layers depend only on inner layers:
 
 ```
 service/
 ├── domain/
-│   ├── entities/               ← czyste dataclassy, zero zależności zewnętrznych
-│   ├── commands/               ← komendy CQRS (operacje zapisu)
-│   ├── queries/                ← zapytania CQRS (serwisy z REST API)
-│   └── repositories/           ← interfejsy repozytoriów (Protocol)
+│   ├── entities/               ← pure dataclasses, zero external dependencies
+│   ├── commands/               ← CQRS commands (write operations)
+│   ├── queries/                ← CQRS queries (read operations)
+│   └── repositories/           ← repository interfaces (Protocol)
 ├── application/
-│   ├── command_handlers/       ← handlery komend (logika biznesowa zapisu)
-│   └── query_handlers/         ← handlery zapytań (serwisy z REST API)
+│   ├── command_handlers/       ← command handlers (write business logic)
+│   └── query_handlers/         ← query handlers (read business logic)
 ├── infrastructure/
-│   ├── persistence/            ← SQLAlchemy ORM, baza SQLite
-│   ├── messaging/              ← publishery i consumery RabbitMQ
-│   └── storage/                ← klient AWS S3 (tylko film_upload_service)
-└── presentation/               ← tylko w serwisach z REST API
-    └── api/                    ← FastAPI routes, schematy Pydantic
+│   ├── persistence/            ← SQLAlchemy ORM / boto3 DynamoDB
+│   ├── messaging/              ← RabbitMQ publishers and consumers
+│   └── storage/                ← AWS S3 client (film_upload_service only)
+└── presentation/               ← only in services with REST API
+    └── api/                    ← FastAPI routes, Pydantic schemas
 ```
 
-> `metadata_service` i `transcoding_service` **nie posiadają warstwy presentation** — są serwisami czysto wewnętrznymi, komunikują się wyłącznie przez RabbitMQ. FastAPI pełni w nich rolę hosta procesu (uruchamia consumer w tle przez `lifespan`).
+> `metadata_service` and `transcoding_service` **do not have a presentation layer** — they are purely internal services, communicating only through RabbitMQ. FastAPI serves as a process host (starts the consumer in the background via `lifespan`).
 
 ---
 
-## Technologie
+## Technologies
 
-| Technologia | Zastosowanie |
+| Technology | Usage |
 |---|---|
-| **FastAPI** | Framework REST API — automatyczny Swagger UI, walidacja przez Pydantic |
-| **SQLAlchemy** | ORM do komunikacji z bazą danych |
-| **SQLite** | Baza danych — każdy serwis ma własny plik `.db` |
-| **Pika** | Biblioteka Python do komunikacji z RabbitMQ (AMQP) |
-| **RabbitMQ / CloudAMQP** | Broker wiadomości działający w chmurze |
-| **Pydantic** | Walidacja danych wejściowych i wyjściowych w API |
-| **Python Protocol** | Interfejsy repozytoriów (structural subtyping) |
-| **Diator** | Biblioteka CQRS/Mediator — wiązanie komend i zapytań z handlerami |
-| **Boto3 / AWS S3** | Przechowywanie plików filmowych w chmurze; presigned URL do pobierania |
-| **Docker / Docker Compose** | Konteneryzacja i uruchomienie wszystkich serwisów |
+| **FastAPI** | REST API framework — automatic Swagger UI, Pydantic validation |
+| **SQLAlchemy** | ORM for communication with RDS PostgreSQL databases |
+| **AWS RDS PostgreSQL** | Database for film_upload_service, metadata_service, rating_service |
+| **AWS DynamoDB** | Database for review_service, transcoding_service |
+| **Pika** | Python library for RabbitMQ communication (AMQP) |
+| **RabbitMQ / CloudAMQP** | Cloud-based message broker |
+| **Pydantic** | Input and output data validation in API |
+| **Python Protocol** | Repository interfaces (structural subtyping) |
+| **Diator** | CQRS/Mediator library — binding commands and queries to handlers |
+| **Boto3 / AWS S3** | Film file storage in the cloud; presigned URL for downloading |
+| **Docker / Docker Compose** | Containerization and local execution of all services |
+| **AWS ECR** | Private Docker image registry in the cloud |
+| **AWS ECS Fargate** | Running containers in the cloud without managing servers |
+| **AWS ALB** | Application Load Balancer — routing traffic to microservices |
+| **Terraform** | Infrastructure as Code — automated AWS infrastructure provisioning |
+| **AWS CloudWatch** | Collecting and viewing logs from containers |
 
 ---
 
-## Decyzje projektowe
+## Design Decisions
 
 ### Database per Service
-Każdy mikroserwis posiada własną, niezależną bazę danych. Żaden serwis nie sięga do bazy innego.
+Each microservice owns its own isolated database in AWS. No service accesses another service's database. The database type is matched to the nature of the data:
 
-| Serwis | Plik bazy |
-|---|---|
-| film_upload_service | `film_upload.db` |
-| metadata_service | `metadata.db` |
-| transcoding_service | `transcoding.db` |
-| review_service | `reviews.db` |
-| rating_service | `ratings.db` |
-
-### WAL Mode (Write-Ahead Log)
-SQLite skonfigurowany z WAL mode aby uniknąć konfliktów między wątkiem HTTP (FastAPI) a wątkiem consumera RabbitMQ przy jednoczesnym zapisie do bazy.
-
-### Sesja per wiadomość
-Consumer tworzy nową sesję bazy danych dla każdej odebranej wiadomości i zamyka ją natychmiast po przetworzeniu. Zapobiega to długo żyjącym sesjom które blokowałyby bazę.
-
-### Python Protocol zamiast ABC
-Interfejsy repozytoriów zdefiniowane jako `Protocol` z modułu `typing` — klasy implementujące nie muszą dziedziczyć, wystarczy że posiadają odpowiednie metody (duck typing z formalnym kontraktem).
-
-### CQRS z Diator
-Komendy (zapis) i zapytania (odczyt) rozdzielone przez wzorzec Mediator. Każdy handler rejestrowany w `SimpleContainer` — własnym lekkim kontenerze DI kompatybilnym z interfejsem Diatora.
-
-### Presentation tylko gdzie potrzeba
-Warstwa `presentation/` istnieje tylko w serwisach które wystawiają REST API dla użytkownika (`film_upload_service`, `review_service`, `rating_service`). Serwisy wewnętrzne (`metadata_service`, `transcoding_service`) uruchamiają consumer RabbitMQ przez FastAPI `lifespan`.
+| Service | Database | Reason |
+|---|---|---|
+| `film_upload_service` | RDS PostgreSQL | Structured relational data |
+| `metadata_service` | RDS PostgreSQL | Structured relational data |
+| `rating_service` | RDS PostgreSQL | Relational data with aggregations |
+| `review_service` | DynamoDB | Independent document-style records |
+| `transcoding_service` | DynamoDB | Simple key-value job entries |
 
 ### Fanout Exchange
-Każdy event publikowany jest na exchange typu `fanout` — jeden event trafia jednocześnie do wszystkich subskrybentów bez konieczności znajomości adresatów przez publishera.
+Events are published to a `fanout` exchange — a single event reaches all subscribers simultaneously without the publisher knowing who they are.
 
-### Pliki w AWS S3
-`film_upload_service` zapisuje przesłany plik bezpośrednio do bucketu S3. Endpoint pobierania zwraca presigned URL ważny przez 1 godzinę — plik nigdy nie jest przepuszczany przez serwer.
+### Files in AWS S3
+Uploaded files are stored directly in S3. The download endpoint returns a presigned URL valid for 1 hour — files are never proxied through the application server.
 
 ---
 
-## Uruchomienie
+## AWS Infrastructure (Terraform)
 
-### Wymagania
+Deployment split into two Terraform stages following the principle of separating infrastructure from application.
+
+```
+terraform/
+├── infrastructure/     ← Stage 1 – foundations (created once)
+│   ├── vpc.tf          VPC, subnets, Internet Gateway
+│   ├── security_groups.tf  firewalls for ALB, ECS, RDS
+│   ├── ecr.tf          private Docker image repositories
+│   ├── iam.tf          IAM roles for ECS
+│   ├── rds.tf          3 RDS PostgreSQL instances
+│   ├── dynamodb.tf     2 DynamoDB tables
+│   └── s3.tf           S3 bucket for film files
+└── services/           ← Stage 2 – application (deployed on every change)
+    ├── ecs_cluster.tf  ECS Fargate cluster
+    ├── alb.tf          Load Balancer with path-based routing
+    ├── cloudwatch.tf   log groups
+    └── ecs_services.tf 5 task definitions + 5 ECS services
+```
+
+### Deployment Steps
+
+```bash
+# 0. Create S3 bucket for Terraform state (once)
+aws s3 mb s3://YOUR_STATE_BUCKET --region eu-north-1
+
+# Stage 1 – infrastructure
+cd terraform/infrastructure
+terraform init \
+  -backend-config="bucket=YOUR_STATE_BUCKET" \
+  -backend-config="region=eu-north-1"
+terraform apply
+
+# Build and push Docker images to ECR
+cd ..
+./build_and_push.sh latest
+
+# Stage 2 – service deployment
+cd services
+cp terraform.tfvars.example terraform.tfvars   # fill in secrets
+terraform init \
+  -backend-config="bucket=YOUR_STATE_BUCKET" \
+  -backend-config="region=eu-north-1"
+terraform apply
+```
+
+---
+
+## Local Setup
+
+### Requirements
 - Docker Desktop
-- Konto CloudAMQP (plan free: Little Lemur)
-- Konto AWS z bucketem S3 i kluczami IAM
+- CloudAMQP account (free plan: Little Lemur)
+- AWS account with S3 bucket, RDS and IAM keys
 
-### Konfiguracja
-Utwórz plik `.env` w głównym folderze projektu:
+### Configuration
+Create a `.env` file in the root project folder:
 ```
 AMQP_URL=amqps://user:password@host.cloudamqp.com/vhost
 
@@ -144,100 +184,123 @@ AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_REGION=eu-north-1
 AWS_S3_BUCKET=your-bucket-name
+
+FILM_UPLOAD_DB_HOST=your-rds-endpoint
+FILM_UPLOAD_DB_PORT=5432
+FILM_UPLOAD_DB_NAME=film_upload_db
+FILM_UPLOAD_DB_USER=postgres
+FILM_UPLOAD_DB_PASSWORD=your-password
+
+METADATA_DB_HOST=your-rds-endpoint
+METADATA_DB_PORT=5432
+METADATA_DB_NAME=metadata_db
+METADATA_DB_USER=postgres
+METADATA_DB_PASSWORD=your-password
+
+RATING_DB_HOST=your-rds-endpoint
+RATING_DB_PORT=5432
+RATING_DB_NAME=rating_db
+RATING_DB_USER=postgres
+RATING_DB_PASSWORD=your-password
+
+DYNAMODB_REVIEWS_TABLE=reviews
+DYNAMODB_TRANSCODING_TABLE=transcoding_jobs
 ```
 
-> **Uwaga:** plik `.env` zawiera poufne dane — nigdy nie commituj go do repozytorium.
+> **Note:** the `.env` file contains sensitive data — never commit it to the repository.
 
 ### Docker Compose
 ```bash
 docker-compose up --build
 ```
 
-### Lokalnie (bez Dockera)
-W każdym katalogu serwisu:
-```bash
-pip install -r requirements.txt
-uvicorn main:app --port 8001 --reload
-```
-
 ---
 
 ## API: Swagger UI
 
-Po uruchomieniu dostępne pod adresami:
+Available locally at:
 - **http://localhost:8001/docs** — Film Upload Service
 - **http://localhost:8004/docs** — Review Service
 - **http://localhost:8005/docs** — Rating Service
 
+Available on AWS via ALB:
+- **http://cinema-alb-935001998.eu-north-1.elb.amazonaws.com/films/**
+- **http://cinema-alb-935001998.eu-north-1.elb.amazonaws.com/reviews/**
+- **http://cinema-alb-935001998.eu-north-1.elb.amazonaws.com/ratings**
+
 ### Endpoints
 
 #### Film Upload Service (`/films`)
-| Metoda | Endpoint | Opis |
+| Method | Endpoint | Description |
 |---|---|---|
-| POST | `/films/upload` | Przesyła plik (multipart: `file`, `title`, `studio`), zapisuje na S3 |
-| GET | `/films/` | Lista wszystkich filmów |
-| GET | `/films/{film_id}/download` | Zwraca presigned URL do pobrania pliku z S3 (ważny 1h) |
+| POST | `/films/upload` | Uploads file (multipart: `file`, `title`, `studio`), saves to S3 |
+| GET | `/films/` | List all films |
+| GET | `/films/{film_id}/download` | Returns presigned URL to download file from S3 (valid 1h) |
 
 #### Review Service (`/reviews`)
-| Metoda | Endpoint | Opis |
+| Method | Endpoint | Description |
 |---|---|---|
-| POST | `/reviews/` | Dodaje recenzję (`film_title`, `reviewer`, `review_text`) |
-| GET | `/reviews/` | Lista wszystkich recenzji |
-| GET | `/reviews/{film_title}` | Recenzje dla konkretnego filmu |
+| POST | `/reviews/` | Adds review (`film_title`, `reviewer`, `review_text`) |
+| GET | `/reviews/` | List all reviews |
+| GET | `/reviews/{film_title}` | Reviews for a specific film |
 
 #### Rating Service
-| Metoda | Endpoint | Opis |
+| Method | Endpoint | Description |
 |---|---|---|
-| POST | `/ratings` | Dodaje ocenę (`film_title`, `user`, `score`) i generuje rekomendację |
-| GET | `/ratings` | Lista wszystkich ocen |
-| GET | `/recommendations` | Lista wszystkich rekomendacji |
+| POST | `/ratings` | Adds rating (`film_title`, `user`, `score`) and generates recommendation |
+| GET | `/ratings` | List all ratings |
+| GET | `/recommendations` | List all recommendations |
 
 ---
 
-## Testy REST API w Postmanie
+## Postman REST API Tests
 
-Zaimportuj plik `Cinema_Microservices_Postman.json` do Postmana.
+Import the `Cinema_Microservices_Postman.json` file into Postman.
 
-| # | Test | Metoda | Endpoint | Asercje |
+| # | Test | Method | Endpoint | Assertions |
 |---|---|---|---|---|
-| 1 | Upload Film File | POST | `/films/upload` | status 201, pole `id`, `s3_key`, poprawne `extension` |
-| 2 | List All Films | GET | `/films/` | status 200, tablica niepusta |
-| 3 | Download Film | GET | `/films/1/download` | status 200, pole `presigned_url` |
-| 4 | Submit Review | POST | `/reviews/` | status 201, pole `id` |
-| 5 | List Reviews for Film | GET | `/reviews/Inception` | status 200, tablica |
+| 1 | Upload Film File | POST | `/films/upload` | status 201, fields `id`, `s3_key`, correct `extension` |
+| 2 | List All Films | GET | `/films/` | status 200, non-empty array |
+| 3 | Download Film | GET | `/films/1/download` | status 200, field `presigned_url` |
+| 4 | Submit Review | POST | `/reviews/` | status 201, field `id` |
+| 5 | List Reviews for Film | GET | `/reviews/Inception` | status 200, array |
 | 6 | Submit Rating | POST | `/ratings` | status 201, `score == 9.2` |
-| 7 | List All Ratings | GET | `/ratings` | status 200, tablica niepusta |
-| 8 | List Recommendations | GET | `/recommendations` | status 200, tablica niepusta |
+| 7 | List All Ratings | GET | `/ratings` | status 200, non-empty array |
+| 8 | List Recommendations | GET | `/recommendations` | status 200, non-empty array |
 
-### Kolejność testowania
-1. Uruchom **TEST 1** ręcznie — wymaga wskazania pliku w polu `file` oraz wypełnienia pól `title` i `studio`
-2. Odczekaj 2-3 sekundy na propagację eventów przez RabbitMQ
-3. Uruchom pozostałe testy — w Postmanie: **Run Collection**
+### Testing Order
+1. Run **TEST 1** manually — requires selecting a file in the `file` field and filling in `title` and `studio`
+2. Wait 2-3 seconds for event propagation through RabbitMQ
+3. Run remaining tests — in Postman: **Run Collection**
 
 ---
 
 ## Logger
 
-Każdy mikroserwis korzysta ze wspólnego loggera (`shared/logger.py`). Każda metoda loguje swoje wywołanie:
+Each microservice uses a shared logger (`shared/logger.py`). Each method logs its invocation:
 
 ```
 film_upload_service | routes.upload_film() - file=film.mp4, title=Inception
+film_upload_service | FilmUploadDB - connected to RDS PostgreSQL successfully
 film_upload_service | S3StorageService.upload_file() - key=uploads/film.mp4, size=104857600
 film_upload_service | BasePublisher.publish() - FilmUploadedEvent: {...}
+metadata_service    | MetadataDB - connected to RDS PostgreSQL successfully
 metadata_service    | FilmUploadedConsumer.handle() - {'title': 'Inception', 'studio': 'Warner'}
 metadata_service    | SaveMetadataCommandHandler.handle() - title=Inception
+transcoding_service | TranscodingDB - connected to DynamoDB successfully
 transcoding_service | FilmUploadedConsumer.handle() - creating job for: Inception
+rating_service      | RatingDB - connected to RDS PostgreSQL successfully
 rating_service      | SubmitRatingCommandHandler.handle() - film=Inception, score=9.2
 rating_service      | SubmitRatingCommandHandler.handle() - recommendation generated
 ```
 
 ---
 
-## Weryfikacja działania brokera
+## Verifying the Message Broker
 
-1. Zaloguj się na **cloudamqp.com**
-2. Otwórz **RabbitMQ Manager**
-3. Zakładka **Connections** — aktywne połączenia serwisów
-4. Zakładka **Queues** — kolejki konsumerów (tworzone przy starcie)
-5. Zakładka **Exchanges** — exchange'e typu fanout (`FilmUploadedEvent`, `ReviewSubmittedEvent`, `RatingSubmittedEvent`, `RecommendationGeneratedEvent`)
-6. Zakładka **Overview** — wykres przepływu wiadomości w czasie rzeczywistym
+1. Log in to **cloudamqp.com**
+2. Open **RabbitMQ Manager**
+3. **Connections** tab — active service connections
+4. **Queues** tab — consumer queues (created on startup)
+5. **Exchanges** tab — fanout exchanges (`FilmUploadedEvent`, `ReviewSubmittedEvent`, `RatingSubmittedEvent`, `RecommendationGeneratedEvent`)
+6. **Overview** tab — real-time message flow chart

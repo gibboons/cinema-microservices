@@ -1,20 +1,26 @@
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import declarative_base, sessionmaker
+import boto3
+from shared.config import get
+from shared.logger import get_logger
 
-DATABASE_URL = "sqlite:///./transcoding.db"
+logger = get_logger(__name__)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+def get_dynamodb_table():
+    table_name = get("DYNAMODB_TRANSCODING_TABLE", "transcoding_jobs")
+    region     = get("AWS_REGION", "us-east-1")
 
-@event.listens_for(engine, "connect")
-def set_wal_mode(dbapi_connection, connection_record):
-    dbapi_connection.execute("PRAGMA journal_mode=WAL")
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-def get_db():
-    db = SessionLocal()
+    logger.info(f"TranscodingDB - rozpoczynam połączenie z DynamoDB, tabela={table_name}...")
     try:
-        yield db
-    finally:
-        db.close()
+        dynamodb = boto3.resource(
+            "dynamodb",
+            region_name=region,
+            aws_access_key_id=get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=get("AWS_SECRET_ACCESS_KEY"),
+        )
+        table = dynamodb.Table(table_name)
+        # ping — sprawdź że tabela istnieje
+        table.table_status
+        logger.info(f"TranscodingDB - połączenie z DynamoDB nawiązane pomyślnie, tabela={table_name}")
+        return table
+    except Exception as e:
+        logger.error(f"TranscodingDB - błąd połączenia z DynamoDB: {e}")
+        raise

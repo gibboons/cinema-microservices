@@ -9,6 +9,6 @@ from shared.logger import get_logger
 
 logger = get_logger("film_upload_service")
 Base.metadata.create_all(bind=engine)
-app = FastAPI(title="Film Upload Service", version="2.0")
+app = FastAPI(title="Film Upload Service", version="3.0")
 app.include_router(router)
 logger.info("FilmUploadService initialized on port 8001")

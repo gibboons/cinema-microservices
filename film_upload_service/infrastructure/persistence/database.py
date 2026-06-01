@@ -1,14 +1,32 @@
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import declarative_base, sessionmaker
+from shared.config import get
+from shared.logger import get_logger
 
-DATABASE_URL = "sqlite:///./film_upload.db"
+logger = get_logger(__name__)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+def _build_url() -> str:
+    host     = get("FILM_UPLOAD_DB_HOST")
+    port     = get("FILM_UPLOAD_DB_PORT", "5432")
+    name     = get("FILM_UPLOAD_DB_NAME")
+    user     = get("FILM_UPLOAD_DB_USER")
+    password = get("FILM_UPLOAD_DB_PASSWORD")
+    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
 
-@event.listens_for(engine, "connect")
-def set_wal_mode(dbapi_connection, connection_record):
-    dbapi_connection.execute("PRAGMA journal_mode=WAL")
+def _create_engine():
+    url = _build_url()
+    logger.info("FilmUploadDB - rozpoczynam połączenie z RDS PostgreSQL...")
+    try:
+        engine = create_engine(url, pool_pre_ping=True)
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("FilmUploadDB - połączenie z RDS PostgreSQL nawiązane pomyślnie")
+        return engine
+    except Exception as e:
+        logger.error(f"FilmUploadDB - błąd połączenia z RDS PostgreSQL: {e}")
+        raise
 
+engine = _create_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

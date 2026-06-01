@@ -9,6 +9,6 @@ from shared.logger import get_logger
 
 logger = get_logger("rating_service")
 Base.metadata.create_all(bind=engine)
-app = FastAPI(title="Rating Service", version="2.0")
+app = FastAPI(title="Rating Service", version="3.0")
 app.include_router(router)
 logger.info("RatingService initialized on port 8005")

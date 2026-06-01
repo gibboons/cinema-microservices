@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from typing import List
 from diator.mediator import Mediator
 from diator.requests import RequestMap
 from diator.events import EventMap, EventEmitter
 
-from infrastructure.persistence.database import get_db
+from infrastructure.persistence.database import get_dynamodb_table
 from infrastructure.persistence.review_repository import ReviewRepository
 from infrastructure.messaging.review_publisher import ReviewSubmittedPublisher
 from application.command_handlers.submit_review_command_handler import SubmitReviewCommandHandler
@@ -22,8 +21,9 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
-def get_mediator(db: Session = Depends(get_db)) -> Mediator:
-    repo      = ReviewRepository(db)
+def get_mediator() -> Mediator:
+    table     = get_dynamodb_table()
+    repo      = ReviewRepository(table)
     publisher = ReviewSubmittedPublisher()
 
     container = SimpleContainer()

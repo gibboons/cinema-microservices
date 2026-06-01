@@ -10,16 +10,16 @@ from shared.logger import get_logger
 logger = get_logger(__name__)
 
 class FilmUploadedConsumer(BaseConsumer):
-    def __init__(self, session_factory, repository_factory):
+    def __init__(self, repository_factory):
         super().__init__("FilmUploadedEvent")
-        self.session_factory    = session_factory
         self.repository_factory = repository_factory
         logger.info("FilmUploadedConsumer.__init__()")
 
-    def _build_mediator(self, db) -> Mediator:
+    def _build_mediator(self) -> Mediator:
         from domain.commands.create_transcoding_job_command import CreateTranscodingJobCommand
         from application.command_handlers.create_transcoding_job_command_handler import CreateTranscodingJobCommandHandler
-        repo = self.repository_factory(db)
+        repo = self.repository_factory()
+
         container = SimpleContainer()
         container.register(CreateTranscodingJobCommandHandler,
                            lambda: CreateTranscodingJobCommandHandler(repo))
@@ -29,14 +29,12 @@ class FilmUploadedConsumer(BaseConsumer):
         return Mediator(request_map=request_map, event_emitter=event_emitter, container=container)
 
     def handle(self, data: dict):
-        logger.info(f"FilmUploadedConsumer.handle() - creating job for: {data.get('title')}")
+        logger.info(f"FilmUploadedConsumer.handle() - title={data.get('title')}")
         from domain.commands.create_transcoding_job_command import CreateTranscodingJobCommand
-        db = self.session_factory()
         try:
-            mediator = self._build_mediator(db)
+            mediator = self._build_mediator()
             asyncio.run(mediator.send(CreateTranscodingJobCommand(
                 title=data["title"], studio=data["studio"],
             )))
-        finally:
-            db.close()
-            logger.info("FilmUploadedConsumer.handle() - session closed")
+        except Exception as e:
+            logger.error(f"FilmUploadedConsumer.handle() - error: {e}")

@@ -6,5 +6,5 @@ class Review:
     film_title: str
     reviewer: str
     review_text: str
-    id: int = None
+    id: str = None
     submitted_at: datetime = field(default_factory=datetime.utcnow)
