@@ -171,9 +171,9 @@ terraform apply
 ## Local Setup
 
 ### Requirements
-- Docker Desktop
+- Docker Desktop (with Swarm support)
 - CloudAMQP account (free plan: Little Lemur)
-- AWS account with S3 bucket, RDS and IAM keys
+- AWS account with S3 bucket, RDS instances and IAM keys
 
 ### Configuration
 Create a `.env` file in the root project folder:
@@ -209,9 +209,65 @@ DYNAMODB_TRANSCODING_TABLE=transcoding_jobs
 
 > **Note:** the `.env` file contains sensitive data — never commit it to the repository.
 
-### Docker Compose
+### Docker Compose (local dev)
 ```bash
 docker-compose up --build
+```
+
+---
+
+## Docker Swarm
+
+The `docker-compose.yml` is configured for Docker Swarm with the following setup:
+
+| Service | Replicas |
+|---|---|
+| `film_upload_service` | 2 |
+| `metadata_service` | 1 |
+| `transcoding_service` | 1 |
+| `review_service` | 3 |
+| `rating_service` | 4 |
+
+All services share an **overlay network** (`cinema-network`) and are configured with:
+- **Restart policy** — `on-failure`, max 3 attempts, 5s delay
+- **Resource limits** — 0.50 CPU, 512MB RAM per container
+- **Resource reservations** — 0.25 CPU, 256MB RAM per container
+- **Rolling updates** — 1 replica at a time, 10s delay between updates
+
+### Running with Docker Swarm
+
+```bash
+# Build images
+docker-compose build
+
+# Initialize Swarm (once)
+docker swarm init
+
+# Load environment variables and deploy
+export $(cat .env | xargs)
+docker stack deploy -c docker-compose.yml cinema
+```
+
+### Useful Swarm commands
+
+```bash
+# List all services and replica status
+docker service ls
+
+# Show all tasks (replicas) for a specific service
+docker service ps cinema_rating_service
+
+# Scale a service up or down
+docker service scale cinema_film_upload_service=5
+
+# View logs from a service
+docker service logs cinema_film_upload_service
+
+# Show overlay network details
+docker network inspect cinema_cinema-network
+
+# Remove the entire stack
+docker stack rm cinema
 ```
 
 ---
