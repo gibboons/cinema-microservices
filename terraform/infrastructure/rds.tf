@@ -11,7 +11,7 @@ resource "aws_db_subnet_group" "main" {
 # Security group dla RDS
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-rds-sg"
-  description = "Allow PostgreSQL from ECS tasks"
+  description = "Allow PostgreSQL from ECS tasks and local Docker Swarm"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -20,6 +20,10 @@ resource "aws_security_group" "rds" {
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs_tasks.id]
+  }
+
+  lifecycle {
+    ignore_changes = [ingress]
   }
 
   egress {
@@ -49,7 +53,7 @@ resource "aws_db_instance" "main" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  publicly_accessible     = false
+  publicly_accessible     = true
   skip_final_snapshot     = true
   deletion_protection     = false
   multi_az                = false
@@ -76,7 +80,7 @@ resource "aws_db_instance" "metadata" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  publicly_accessible = false
+  publicly_accessible = true
   skip_final_snapshot = true
   deletion_protection = false
   multi_az            = false
@@ -102,7 +106,7 @@ resource "aws_db_instance" "rating" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  publicly_accessible = false
+  publicly_accessible = true
   skip_final_snapshot = true
   deletion_protection = false
   multi_az            = false
